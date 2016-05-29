@@ -1,0 +1,846 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "adminUsername": {
+            "defaultValue": null,
+            "type": "string"
+        },
+        "adminPassword": {
+            "defaultValue": null,
+            "type": "securestring"
+        },
+        "frontendVMSize": {
+            "defaultValue": "Standard_DS1_v2",
+            "type": "string"
+        },
+        "backendVMSize": {
+            "defaultValue": "Standard_DS1_v2",
+            "type": "string"
+        },
+        "storageAccountName": {
+            "defaultValue": "CHANGEMEchefstorage",
+            "type": "string"
+        },
+        "storageAccountType": {
+            "defaultValue": "Standard_LRS",
+            "type": "string"
+        },        
+        "domainNameLabel": {
+            "defaultValue": "CHANGEME-chef-ha",
+            "type": "string"
+        }
+    },
+    "variables": {
+        "chef-ha-vnet-cidr": "10.51.0.0/16",
+        "chef-ha-subnet-fe-cidr": "10.51.0.0/24",
+        "chef-ha-subnet-be-cidr": "10.51.1.0/24",
+        "ubuntuSku": "14.04.3-LTS"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Compute/availabilitySets",
+            "name": "chef-ha-av-be",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "tags": {},
+            "properties": {
+                "platformUpdateDomainCount": 5,
+                "platformFaultDomainCount": 3
+            },
+            "dependsOn": []
+        },
+        {
+            "type": "Microsoft.Compute/availabilitySets",
+            "name": "chef-ha-av-fe",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "tags": {},
+            "properties": {
+                "platformUpdateDomainCount": 5,
+                "platformFaultDomainCount": 3
+            },
+            "dependsOn": []
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "chef-ha-be-srv-01",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets', 'chef-ha-av-be')]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "[parameters('backendVMSize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "Canonical",
+                        "offer": "UbuntuServer",
+                        "sku": "[variables('ubuntuSku')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "chef-ha-be-srv-01",
+                        "createOption": "FromImage",
+                        "vhd": {
+                            "uri": "[concat('https', '://', parameters('storageAccountName'), '.blob.core.windows.net', concat('/vhds/', 'chef-ha-be-srv-01', 'os-disk.vhd'))]"
+                        },
+                        "caching": "ReadWrite"
+                    },
+                    "dataDisks": []
+                },
+                "osProfile": {
+                    "computerName": "chef-ha-be-srv-01",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": false
+                    },
+                    "secrets": [],
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', 'chef-ha-be-srv-01-nic')]"
+                        }
+                    ]
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/availabilitySets', 'chef-ha-av-be')]",
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', 'chef-ha-be-srv-01-nic')]"
+            ]
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "chef-ha-be-srv-02",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets', 'chef-ha-av-be')]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "[parameters('backendVMSize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "Canonical",
+                        "offer": "UbuntuServer",
+                        "sku": "[variables('ubuntuSku')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "chef-ha-be-srv-02",
+                        "createOption": "FromImage",
+                        "vhd": {
+                            "uri": "[concat('https', '://', parameters('storageAccountName'), '.blob.core.windows.net', concat('/vhds/', 'chef-ha-be-srv-02', 'os-disk.vhd'))]"
+                        },
+                        "caching": "ReadWrite"
+                    },
+                    "dataDisks": []
+                },
+                "osProfile": {
+                    "computerName": "chef-ha-be-srv-02",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": false
+                    },
+                    "secrets": [],
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', 'chef-ha-be-srv-02-nic')]"
+                        }
+                    ]
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/availabilitySets', 'chef-ha-av-be')]",
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', 'chef-ha-be-srv-02-nic')]"
+            ]
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "chef-ha-be-srv-03",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets', 'chef-ha-av-be')]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "[parameters('backendVMSize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "Canonical",
+                        "offer": "UbuntuServer",
+                        "sku": "[variables('ubuntuSku')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "chef-ha-be-srv-03",
+                        "createOption": "FromImage",
+                        "vhd": {
+                            "uri": "[concat('https', '://', parameters('storageAccountName'), '.blob.core.windows.net', concat('/vhds/', 'chef-ha-be-srv-03', 'os-disk.vhd'))]"
+                        },
+                        "caching": "ReadWrite"
+                    },
+                    "dataDisks": []
+                },
+                "osProfile": {
+                    "computerName": "chef-ha-be-srv-03",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": false
+                    },
+                    "secrets": [],
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', 'chef-ha-be-srv-03-nic')]"
+                        }
+                    ]
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/availabilitySets', 'chef-ha-av-be')]",
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', 'chef-ha-be-srv-03-nic')]"
+            ]
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "chef-ha-fe-srv-01",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets', 'chef-ha-av-fe')]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "[parameters('backendVMSize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "Canonical",
+                        "offer": "UbuntuServer",
+                        "sku": "[variables('ubuntuSku')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "chef-ha-fe-srv-01",
+                        "createOption": "FromImage",
+                        "vhd": {
+                            "uri": "[concat('https', '://', parameters('storageAccountName'), '.blob.core.windows.net', concat('/vhds/', 'chef-ha-fe-srv-01', 'os-disk.vhd'))]"
+                        },
+                        "caching": "ReadWrite"
+                    },
+                    "dataDisks": []
+                },
+                "osProfile": {
+                    "computerName": "chef-ha-fe-srv-01",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": false
+                    },
+                    "secrets": [],
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', 'chef-ha-fe-srv-01-nic')]"
+                        }
+                    ]
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/availabilitySets', 'chef-ha-av-fe')]",
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', 'chef-ha-fe-srv-01-nic')]"
+            ]
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "chef-ha-fe-srv-02",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets', 'chef-ha-av-fe')]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "[parameters('backendVMSize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "Canonical",
+                        "offer": "UbuntuServer",
+                        "sku": "[variables('ubuntuSku')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "chef-ha-fe-srv-02",
+                        "createOption": "FromImage",
+                        "vhd": {
+                            "uri": "[concat('https', '://', parameters('storageAccountName'), '.blob.core.windows.net', concat('/vhds/', 'chef-ha-fe-srv-02', 'os-disk.vhd'))]"
+                        },
+                        "caching": "ReadWrite"
+                    },
+                    "dataDisks": []
+                },
+                "osProfile": {
+                    "computerName": "chef-ha-fe-srv-02",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": false
+                    },
+                    "secrets": [],
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', 'chef-ha-fe-srv-02-nic')]"
+                        }
+                    ]
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/availabilitySets', 'chef-ha-av-fe')]",
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', 'chef-ha-fe-srv-02-nic')]"
+            ]
+        },        
+        {
+            "type": "Microsoft.Network/loadBalancers",
+            "name": "chef-ha-lb-fe",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "frontendIPConfigurations": [
+                    {
+                        "name": "LoadBalancerFrontEnd",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', 'chef-ha-ip-ext')]"
+                            }
+                        }
+                    }
+                ],
+                "backendAddressPools": [
+                    {
+                        "name": "chef-ha-pool-fe"
+                    },
+                    {
+                        "name": "chef-ha-pool-ssh-admin"
+                    }
+                ],
+                "loadBalancingRules": [
+                    {
+                        "name": "admin-ssh-access",
+                        "properties": {
+                            "frontendIPConfiguration": {
+                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers','chef-ha-lb-fe'),'/frontendIPConfigurations/LoadBalancerFrontEnd')]"
+                            },
+                            "frontendPort": 22,
+                            "backendPort": 22,
+                            "enableFloatingIP": false,
+                            "idleTimeoutInMinutes": 30,
+                            "protocol": "Tcp",
+                            "loadDistribution": "SourceIP",
+                            "backendAddressPool": {
+                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers','chef-ha-lb-fe'),'/backendAddressPools/chef-ha-pool-ssh-admin')]"
+                            },
+                            "probe": {
+                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers','chef-ha-lb-fe'),'/probes/probe-ssh')]"
+                            }
+                        }
+                    },
+                    {
+                        "name": "frontend-http",
+                        "properties": {
+                            "frontendIPConfiguration": {
+                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers','chef-ha-lb-fe'),'/frontendIPConfigurations/LoadBalancerFrontEnd')]"
+                            },
+                            "frontendPort": 80,
+                            "backendPort": 80,
+                            "enableFloatingIP": false,
+                            "idleTimeoutInMinutes": 10,
+                            "protocol": "Tcp",
+                            "loadDistribution": "SourceIPProtocol",
+                            "backendAddressPool": {
+                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers','chef-ha-lb-fe'),'/backendAddressPools/chef-ha-pool-fe')]"
+                            },
+                            "probe": {
+                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers','chef-ha-lb-fe'),'/probes/probe-http')]"
+                            }
+                        }
+                    },
+                    {
+                        "name": "frontend-https",
+                        "properties": {
+                            "frontendIPConfiguration": {
+                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers','chef-ha-lb-fe'),'/frontendIPConfigurations/LoadBalancerFrontEnd')]"
+                            },
+                            "frontendPort": 443,
+                            "backendPort": 443,
+                            "enableFloatingIP": false,
+                            "idleTimeoutInMinutes": 10,
+                            "protocol": "Tcp",
+                            "loadDistribution": "SourceIPProtocol",
+                            "backendAddressPool": {
+                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers','chef-ha-lb-fe'),'/backendAddressPools/chef-ha-pool-fe')]"
+                            },
+                            "probe": {
+                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers','chef-ha-lb-fe'),'/probes/probe-http')]"
+                            }
+                        }
+                    }
+                ],
+                "probes": [
+                    {
+                        "name": "probe-ssh",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "port": 22,
+                            "intervalInSeconds": 5,
+                            "numberOfProbes": 3
+                        }
+                    },
+                    {
+                        "name": "probe-http",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "port": 80,
+                            "intervalInSeconds": 5,
+                            "numberOfProbes": 2
+                        }
+                    }
+                ],
+                "inboundNatRules": [],
+                "outboundNatRules": [],
+                "inboundNatPools": []
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses', 'chef-ha-ip-ext')]"
+            ]
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "chef-ha-be-srv-01-nic",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', 'chef-ha-vnet'), '/subnets/chef-ha-subnet-be')]"
+                            }
+                        }
+                    }
+                ],
+                "dnsSettings": {
+                    "dnsServers": []
+                },
+                "enableIPForwarding": false,
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'chef-ha-nsg-be')]"
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', 'chef-ha-vnet')]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', 'chef-ha-nsg-be')]"
+            ]
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "chef-ha-be-srv-02-nic",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', 'chef-ha-vnet'), '/subnets/chef-ha-subnet-be')]"
+                            }
+                        }
+                    }
+                ],
+                "dnsSettings": {
+                    "dnsServers": []
+                },
+                "enableIPForwarding": false,
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'chef-ha-nsg-be')]"
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', 'chef-ha-vnet')]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', 'chef-ha-nsg-be')]"
+            ]
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "chef-ha-be-srv-03-nic",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', 'chef-ha-vnet'), '/subnets/chef-ha-subnet-be')]"
+                            }
+                        }
+                    }
+                ],
+                "dnsSettings": {
+                    "dnsServers": []
+                },
+                "enableIPForwarding": false,
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'chef-ha-nsg-be')]"
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', 'chef-ha-vnet')]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', 'chef-ha-nsg-be')]"
+            ]
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "chef-ha-fe-srv-01-nic",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', 'chef-ha-vnet'), '/subnets/chef-ha-subnet-fe')]"
+                            },
+                            "loadBalancerBackendAddressPools": [
+                                {
+                                    "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'chef-ha-lb-fe'), '/backendAddressPools/chef-ha-pool-fe')]"
+                                },
+                                {
+                                    "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'chef-ha-lb-fe'), '/backendAddressPools/chef-ha-pool-ssh-admin')]"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "dnsSettings": {
+                    "dnsServers": []
+                },
+                "enableIPForwarding": false,
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'chef-ha-nsg-fe')]"
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', 'chef-ha-vnet')]",
+                "[resourceId('Microsoft.Network/loadBalancers', 'chef-ha-lb-fe')]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', 'chef-ha-nsg-fe')]"
+            ]
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "chef-ha-fe-srv-02-nic",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', 'chef-ha-vnet'), '/subnets/chef-ha-subnet-fe')]"
+                            },
+                            "loadBalancerBackendAddressPools": [
+                                {
+                                    "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'chef-ha-lb-fe'), '/backendAddressPools/chef-ha-pool-fe')]"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "dnsSettings": {
+                    "dnsServers": []
+                },
+                "enableIPForwarding": false,
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'chef-ha-nsg-fe')]"
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', 'chef-ha-vnet')]",
+                "[resourceId('Microsoft.Network/loadBalancers', 'chef-ha-lb-fe')]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', 'chef-ha-nsg-fe')]"
+            ]
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "chef-ha-nsg-be",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "no-other-inbound",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "VirtualNetwork",
+                            "destinationAddressPrefix": "VirtualNetwork",
+                            "access": "Deny",
+                            "priority": 4096,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "allow-ssh-admin",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "VirtualNetwork",
+                            "destinationAddressPrefix": "VirtualNetwork",
+                            "access": "Allow",
+                            "priority": 999,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "allow-etcd",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "2379",
+                            "sourceAddressPrefix": "VirtualNetwork",
+                            "destinationAddressPrefix": "VirtualNetwork",
+                            "access": "Allow",
+                            "priority": 110,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "allow-postgresql",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "5432",
+                            "sourceAddressPrefix": "VirtualNetwork",
+                            "destinationAddressPrefix": "VirtualNetwork",
+                            "access": "Allow",
+                            "priority": 120,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "allow-leaderl",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "7331",
+                            "sourceAddressPrefix": "VirtualNetwork",
+                            "destinationAddressPrefix": "VirtualNetwork",
+                            "access": "Allow",
+                            "priority": 130,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "allow-elasticsearch",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "9200",
+                            "sourceAddressPrefix": "VirtualNetwork",
+                            "destinationAddressPrefix": "VirtualNetwork",
+                            "access": "Allow",
+                            "priority": 140,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "allow-elasticsearch-peer",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "9300",
+                            "sourceAddressPrefix": "[variables('chef-ha-subnet-be-cidr')]",
+                            "destinationAddressPrefix": "[variables('chef-ha-subnet-be-cidr')]",
+                            "access": "Allow",
+                            "priority": 141,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "allow-etcd-peer",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "2380",
+                            "sourceAddressPrefix": "[variables('chef-ha-subnet-be-cidr')]",
+                            "destinationAddressPrefix": "[variables('chef-ha-subnet-be-cidr')]",
+                            "access": "Allow",
+                            "priority": 111,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            },
+            "dependsOn": []
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "chef-ha-nsg-fe",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "no-other-inbound",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "VirtualNetwork",
+                            "destinationAddressPrefix": "VirtualNetwork",
+                            "access": "Deny",
+                            "priority": 4096,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "allow-internet-ssh-admin",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "Internet",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 100,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "allow-internet-to-fe-http",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "80",
+                            "sourceAddressPrefix": "Internet",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 110,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "allow-internet-to-fe-https",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "443",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 120,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            },
+            "dependsOn": []
+        },
+        {
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "chef-ha-ip-ext",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "publicIPAllocationMethod": "Static",
+                "idleTimeoutInMinutes": 10,
+                "dnsSettings": {
+                    "domainNameLabel": "[parameters('domainNameLabel')]"
+                }
+            },
+            "dependsOn": []
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "chef-ha-vnet",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('chef-ha-vnet-cidr')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "chef-ha-subnet-fe",
+                        "properties": {
+                            "addressPrefix": "[variables('chef-ha-subnet-fe-cidr')]",
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'chef-ha-nsg-fe')]"
+                            }
+                        }
+                    },
+                    {
+                        "name": "chef-ha-subnet-be",
+                        "properties": {
+                            "addressPrefix": "[variables('chef-ha-subnet-be-cidr')]",
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'chef-ha-nsg-be')]"
+                            }
+                        }
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', 'chef-ha-nsg-fe')]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', 'chef-ha-nsg-be')]"
+            ]
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[parameters('storageAccountName')]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "tags": {},
+            "properties": {
+                "accountType": "[parameters('storageAccountType')]"
+            },
+            "dependsOn": []
+        }
+    ]
+}

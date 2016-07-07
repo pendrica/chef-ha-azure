@@ -228,7 +228,7 @@
                     "id": "[resourceId('Microsoft.Compute/availabilitySets', 'chef-ha-av-fe')]"
                 },
                 "hardwareProfile": {
-                    "vmSize": "[parameters('backendVMSize')]"
+                    "vmSize": "[parameters('frontendVMSize')]"
                 },
                 "storageProfile": {
                     "imageReference": {
@@ -280,7 +280,7 @@
                     "id": "[resourceId('Microsoft.Compute/availabilitySets', 'chef-ha-av-fe')]"
                 },
                 "hardwareProfile": {
-                    "vmSize": "[parameters('backendVMSize')]"
+                    "vmSize": "[parameters('frontendVMSize')]"
                 },
                 "storageProfile": {
                     "imageReference": {
@@ -773,6 +773,19 @@
                             "destinationAddressPrefix": "*",
                             "access": "Allow",
                             "priority": 120,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "allow-ssh-admin",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "VirtualNetwork",
+                            "destinationAddressPrefix": "VirtualNetwork",
+                            "access": "Allow",
+                            "priority": 999,
                             "direction": "Inbound"
                         }
                     }
